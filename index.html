@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3B141A">
+    <meta name="description" content="Analiza y descompone imágenes en canales RGB, CMYK, HSV y monocromáticos. Todo el procesamiento ocurre localmente en tu navegador.">
+    <meta name="author" content="pollococo-star">
+    <title>Splitter de Canales de Color — RGB · CMYK · HSV</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        custom: {
+                            bg: '#3B141A',
+                            card: '#522129',
+                            gold: '#E5A853',
+                            saffron: '#C9863B',
+                            primary: '#FDF3E7',
+                            muted: 'rgba(253, 243, 231, 0.78)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #3B141A; color: #FDF3E7; }
+        .checkerboard {
+            background-image: linear-gradient(45deg, #451b22 25%, transparent 25%), 
+                              linear-gradient(-45deg, #451b22 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #451b22 75%), 
+                              linear-gradient(-45deg, transparent 75%, #451b22 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+    </style>
+</head>
+<body class="bg-[#3B141A] text-[#FDF3E7] min-h-full flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-[#522129] border-b border-[#C9863B]/30 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-[#E5A853] text-[#3B141A] p-2.5 rounded-xl shadow-md">
+                    <i class="fa-solid fa-palette text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-[#FDF3E7]">Splitter de Canales de Color</h1>
+                    <p class="text-xs text-[rgba(253,243,231,0.78)]">Analiza y descompone imágenes en RGB, CMYK, HSV y más</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="resetBtn" class="hidden text-sm bg-[#3B141A] hover:bg-[#3B141A]/80 text-[#FDF3E7] px-3 py-2 rounded-lg font-medium transition flex items-center gap-2 border border-[#C9863B]/30">
+                    <i class="fa-solid fa-rotate-left"></i> Nueva Imagen
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+
+        <!-- Upload Section (Visible when no image) -->
+        <div id="uploadSection" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#C9863B]/50 rounded-2xl bg-[#522129] p-12 text-center transition hover:border-[#E5A853] cursor-pointer shadow-lg" role="button" tabindex="0" aria-label="Subir imagen">
+            <input type="file" id="imageInput" accept="image/*" class="hidden">
+            <div class="w-20 h-20 bg-[#3B141A] text-[#E5A853] rounded-full flex items-center justify-center text-3xl mb-4 shadow-md">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h2 class="text-lg font-semibold text-[#FDF3E7] mb-1">Sube o arrastra una imagen aquí</h2>
+            <p class="text-sm text-[rgba(253,243,231,0.78)] max-w-sm mb-6">Soporta PNG, JPG, WEBP. La imagen se procesa localmente en tu navegador sin salir de tu equipo.</p>
+            <button type="button" id="selectFileBtn" class="bg-[#E5A853] hover:bg-[#C9863B] text-[#3B141A] font-semibold px-5 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                <i class="fa-solid fa-folder-open"></i> Seleccionar Archivo
+            </button>
+        </div>
+
+        <!-- Dashboard Section (Hidden until image loaded) -->
+        <div id="dashboardSection" class="hidden flex flex-col gap-6">
+            
+            <!-- Controls & Mode Selector -->
+            <div class="bg-[#522129] p-4 rounded-2xl border border-[#C9863B]/30 shadow-md flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0" id="colorSpaceTabs">
+                    <button data-space="rgb" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold bg-[#E5A853] text-[#3B141A] transition shadow-sm">RGB (Aditivo)</button>
+                    <button data-space="cmyk" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold bg-[#3B141A] text-[rgba(253,243,231,0.78)] hover:bg-[#3B141A]/80 hover:text-[#FDF3E7] transition">CMYK (Sustractivo)</button>
+                    <button data-space="hsv" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold bg-[#3B141A] text-[rgba(253,243,231,0.78)] hover:bg-[#3B141A]/80 hover:text-[#FDF3E7] transition">HSV (Color)</button>
+                    <button data-space="mono" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold bg-[#3B141A] text-[rgba(253,243,231,0.78)] hover:bg-[#3B141A]/80 hover:text-[#FDF3E7] transition">Monocromáticos</button>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-[rgba(253,243,231,0.78)] font-medium" id="imageDim">0 x 0 px</span>
+                    <button id="downloadAllBtn" class="bg-[#C9863B] hover:bg-[#E5A853] text-[#3B141A] text-sm font-semibold px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-2">
+                        <i class="fa-solid fa-download"></i> Descargar Todo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Workspace Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                
+                <!-- Original Image & Info Card -->
+                <div class="bg-[#522129] p-5 rounded-2xl border border-[#C9863B]/30 shadow-md flex flex-col gap-4 lg:sticky lg:top-24">
+                    <h3 class="text-sm font-bold text-[#E5A853] uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-image text-[#E5A853]"></i> Original
+                    </h3>
+                    <div class="checkerboard rounded-xl overflow-hidden border border-[#C9863B]/25 flex items-center justify-center p-2 bg-[#3B141A] aspect-square relative group">
+                        <canvas id="originalCanvas" class="max-w-full max-h-full object-contain rounded-lg shadow-xs"></canvas>
+                        <div id="inspectorTooltip" class="absolute bottom-2 left-2 right-2 bg-[#3B141A]/90 backdrop-blur-md text-[#FDF3E7] text-xs p-2 rounded-lg opacity-0 group-hover:opacity-100 transition pointer-events-none flex justify-between border border-[#C9863B]/30">
+                            <span id="tooltipCoords">X: 0, Y: 0</span>
+                            <span id="tooltipValues">RGB: (0,0,0)</span>
+                        </div>
+                    </div>
+                    <div class="text-xs text-[rgba(253,243,231,0.78)] space-y-1 bg-[#3B141A] p-3 rounded-xl border border-[#C9863B]/20">
+                        <p><strong class="text-[#FDF3E7]">Consejo:</strong> Pasa el cursor por la imagen original para inspeccionar valores de color detallados.</p>
+                    </div>
+                </div>
+
+                <!-- Channels Display Grid -->
+                <div class="lg:col-span-3 flex flex-col gap-4">
+                    <div class="flex items-center justify-between">
+                        <h3 id="currentSpaceTitle" class="text-base font-bold text-[#FDF3E7]">Canales RGB (Rojo, Verde, Azul)</h3>
+                        <span class="text-xs text-[rgba(253,243,231,0.78)] font-medium">Haz clic en cualquier canal para ampliar o descargar</span>
+                    </div>
+
+                    <!-- Channel Cards Grid -->
+                    <div id="channelsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <!-- Dynamically populated channel cards -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-[#C9863B]/20 py-5 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[rgba(253,243,231,0.78)]">
+            <span class="font-semibold text-[#FDF3E7]">color-channel-splitter</span>
+            <span>Procesamiento 100% local · Tus imágenes no salen del navegador</span>
+            <a href="https://github.com/pollococo-star/color-channel-splitter" target="_blank" rel="noopener noreferrer" class="text-[#E5A853] hover:text-[#F4C77F] transition">Ver en GitHub ↗</a>
+        </div>
+    </footer>
+
+    <!-- Modal for Channel Preview / Download -->
+    <div id="previewModal" class="fixed inset-0 z-50 bg-[#3B141A]/80 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-[#522129] border border-[#C9863B]/40 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col gap-4 transform transition-all">
+            <div class="flex items-center justify-between border-b border-[#C9863B]/30 pb-3">
+                <h3 id="modalTitle" class="text-lg font-bold text-[#FDF3E7]">Vista Previa de Canal</h3>
+                <button id="closeModal" class="text-[#FDF3E7]/70 hover:text-[#FDF3E7] text-lg w-8 h-8 rounded-full flex items-center justify-center bg-[#3B141A] transition border border-[#C9863B]/30">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="checkerboard rounded-xl p-4 flex items-center justify-center bg-[#3B141A] max-h-[60vh] overflow-hidden border border-[#C9863B]/20">
+                <canvas id="modalCanvas" class="max-w-full max-h-[50vh] object-contain rounded-lg shadow-md"></canvas>
+            </div>
+            <div class="flex items-center justify-between pt-2">
+                <p id="modalDesc" class="text-xs text-[rgba(253,243,231,0.78)]">Canal individual extraído.</p>
+                <button id="modalDownloadBtn" class="bg-[#E5A853] hover:bg-[#C9863B] text-[#3B141A] font-semibold text-sm px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-2">
+                    <i class="fa-solid fa-download"></i> Descargar Canal PNG
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message notification box (Custom alert) -->
+    <div id="notification" class="fixed bottom-5 right-5 z-50 bg-[#522129] border border-[#C9863B]/40 text-[#FDF3E7] px-4 py-3 rounded-xl shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-3">
+        <i id="notifIcon" class="fa-solid fa-circle-check text-[#E5A853]"></i>
+        <span id="notifText" class="text-sm font-medium">Acción realizada con éxito</span>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // DOM Elements
+        const uploadSection = document.getElementById('uploadSection');
+        const dashboardSection = document.getElementById('dashboardSection');
+        const imageInput = document.getElementById('imageInput');
+        const resetBtn = document.getElementById('resetBtn');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const originalCtx = originalCanvas.getContext('2d');
+        const channelsContainer = document.getElementById('channelsContainer');
+        const currentSpaceTitle = document.getElementById('currentSpaceTitle');
+        const imageDim = document.getElementById('imageDim');
+        const inspectorTooltip = document.getElementById('inspectorTooltip');
+        const tooltipCoords = document.getElementById('tooltipCoords');
+        const tooltipValues = document.getElementById('tooltipValues');
+        
+        // Modal elements
+        const previewModal = document.getElementById('previewModal');
+        const closeModal = document.getElementById('closeModal');
+        const modalCanvas = document.getElementById('modalCanvas');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+        const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+        const notification = document.getElementById('notification');
+        const notifText = document.getElementById('notifText');
+
+        let sourceImage = null;
+        let currentSpace = 'rgb';
+        let channelCanvases = {};
+
+        // Utility notification
+        function showNotification(text, isError = false) {
+            notifText.textContent = text;
+            notification.classList.remove('translate-y-20', 'opacity-0');
+            if(isError) {
+                document.getElementById('notifIcon').className = 'fa-solid fa-circle-exclamation text-rose-400';
+            } else {
+                document.getElementById('notifIcon').className = 'fa-solid fa-circle-check text-[#E5A853]';
+            }
+            setTimeout(() => {
+                notification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Drag and drop setup
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                uploadSection.classList.add('border-[#E5A853]', 'bg-[#522129]/80');
+            }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadSection.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                uploadSection.classList.remove('border-[#E5A853]', 'bg-[#522129]/80');
+            }, false);
+        });
+        uploadSection.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files && files[0]) handleImageFile(files[0]);
+        });
+
+        // Click anywhere on the upload zone (except the button which has its own handler)
+        uploadSection.addEventListener('click', (e) => {
+            if (e.target.closest('#selectFileBtn') || e.target === imageInput) return;
+            imageInput.click();
+        });
+        uploadSection.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                imageInput.click();
+            }
+        });
+        document.getElementById('selectFileBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleImageFile(e.target.files[0]);
+            }
+        });
+
+        function handleImageFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showNotification('Por favor, selecciona un archivo de imagen válido.', true);
+                return;
+            }
+            showNotification('Procesando imagen…');
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => processLoadedImage(img);
+                img.onerror = () => showNotification('No se pudo cargar la imagen.', true);
+                img.src = e.target.result;
+            };
+            reader.onerror = () => showNotification('Error al leer el archivo.', true);
+            reader.readAsDataURL(file);
+        }
+
+        function processLoadedImage(img) {
+            sourceImage = img;
+            let maxDim = 1000;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                    height = Math.round((height * maxDim) / width);
+                    width = maxDim;
+                } else {
+                    width = Math.round((width * maxDim) / height);
+                    height = maxDim;
+                }
+            }
+
+            originalCanvas.width = width;
+            originalCanvas.height = height;
+            originalCtx.drawImage(img, 0, 0, width, height);
+
+            imageDim.textContent = `${width} x ${height} px`;
+            uploadSection.classList.add('hidden');
+            dashboardSection.classList.remove('hidden');
+            resetBtn.classList.remove('hidden');
+
+            generateChannels();
+            showNotification('Imagen cargada y procesada con éxito.');
+        }
+
+        resetBtn.addEventListener('click', () => {
+            dashboardSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            resetBtn.classList.add('hidden');
+            imageInput.value = '';
+            sourceImage = null;
+        });
+
+        // Tab Switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.className = 'tab-btn px-4 py-2 rounded-xl text-sm font-semibold bg-[#3B141A] text-[rgba(253,243,231,0.78)] hover:bg-[#3B141A]/80 hover:text-[#FDF3E7] transition';
+                });
+                e.target.className = 'tab-btn px-4 py-2 rounded-xl text-sm font-semibold bg-[#E5A853] text-[#3B141A] transition shadow-sm';
+                currentSpace = e.target.getAttribute('data-space');
+                
+                const titles = {
+                    'rgb': 'Canales RGB (Rojo, Verde, Azul)',
+                    'cmyk': 'Canales CMYK (Cian, Magenta, Amarillo, Negro)',
+                    'hsv': 'Canales HSV (Tono, Saturación, Valor)',
+                    'mono': 'Canales Monocromáticos (Luminancia y Escala de Grises)'
+                };
+                currentSpaceTitle.textContent = titles[currentSpace];
+                renderChannelsGrid();
+            });
+        });
+
+        // Core Image Processing Algorithms
+        function generateChannels() {
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+            const srcData = originalCtx.getImageData(0, 0, width, height);
+            const data = srcData.data;
+
+            channelCanvases = {};
+            const spaces = ['rgb', 'cmyk', 'hsv', 'mono'];
+
+            spaces.forEach(space => {
+                channelCanvases[space] = {};
+            });
+
+            const createBuf = () => new ImageData(width, height);
+
+            let rImg = createBuf(), gImg = createBuf(), bImg = createBuf();
+            let cImg = createBuf(), mImg = createBuf(), yImg = createBuf(), kImg = createBuf();
+            let hImg = createBuf(), sImg = createBuf(), vImg = createBuf();
+            let lumImg = createBuf(), grayImg = createBuf(), sepiaImg = createBuf();
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+
+                rImg.data[i] = r; rImg.data[i+1] = 0; rImg.data[i+2] = 0; rImg.data[i+3] = a;
+                gImg.data[i] = 0; gImg.data[i+1] = g; gImg.data[i+2] = 0; gImg.data[i+3] = a;
+                bImg.data[i] = 0; bImg.data[i+1] = 0; bImg.data[i+2] = b; bImg.data[i+3] = a;
+
+                let rf = r / 255, gf = g / 255, bf = b / 255;
+                let k = 1 - Math.max(rf, gf, bf);
+                let c = 0, m = 0, y = 0;
+                if (k < 1) {
+                    c = (1 - rf - k) / (1 - k);
+                    m = (1 - gf - k) / (1 - k);
+                    y = (1 - bf - k) / (1 - k);
+                }
+                
+                let cDensity = Math.round(c * 255);
+                let mDensity = Math.round(m * 255);
+                let yDensity = Math.round(y * 255);
+                let kDensity = Math.round(k * 255);
+
+                cImg.data[i] = 255 - cDensity; cImg.data[i+1] = 255 - cDensity; cImg.data[i+2] = 255 - cDensity; cImg.data[i+3] = a;
+                mImg.data[i] = 255 - mDensity; mImg.data[i+1] = 255 - mDensity; mImg.data[i+2] = 255 - mDensity; mImg.data[i+3] = a;
+                yImg.data[i] = 255 - yDensity; yImg.data[i+1] = 255 - yDensity; yImg.data[i+2] = 255 - yDensity; yImg.data[i+3] = a;
+                kImg.data[i] = 255 - kDensity; kImg.data[i+1] = 255 - kDensity; kImg.data[i+2] = 255 - kDensity; kImg.data[i+3] = a;
+
+                let max = Math.max(rf, gf, bf), min = Math.min(rf, gf, bf);
+                let h, s, v = max;
+                let d = max - min;
+                s = max === 0 ? 0 : d / max;
+                if (max === min) {
+                    h = 0;
+                } else {
+                    switch (max) {
+                        case rf: h = (gf - bf) / d + (gf < bf ? 6 : 0); break;
+                        case gf: h = (bf - rf) / d + 2; break;
+                        case bf: h = (rf - gf) / d + 4; break;
+                    }
+                    h /= 6;
+                }
+                
+                let hVal = Math.round(h * 255);
+                let sVal = Math.round(s * 255);
+                let vVal = Math.round(v * 255);
+
+                hImg.data[i] = hVal; hImg.data[i+1] = hVal; hImg.data[i+2] = hVal; hImg.data[i+3] = a;
+                sImg.data[i] = sVal; sImg.data[i+1] = sVal; sImg.data[i+2] = sVal; sImg.data[i+3] = a;
+                vImg.data[i] = vVal; vImg.data[i+1] = vVal; vImg.data[i+2] = vVal; vImg.data[i+3] = a;
+
+                let gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                grayImg.data[i] = gray; grayImg.data[i+1] = gray; grayImg.data[i+2] = gray; grayImg.data[i+3] = a;
+
+                let lum = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+                lumImg.data[i] = lum; lumImg.data[i+1] = lum; lumImg.data[i+2] = lum; lumImg.data[i+3] = a;
+
+                let tr = Math.min(255, (r * 0.393) + (g * 0.769) + (b * 0.189));
+                let tg = Math.min(255, (r * 0.349) + (g * 0.686) + (b * 0.168));
+                let tb = Math.min(255, (r * 0.272) + (g * 0.534) + (b * 0.131));
+                sepiaImg.data[i] = tr; sepiaImg.data[i+1] = tg; sepiaImg.data[i+2] = tb; sepiaImg.data[i+3] = a;
+            }
+
+            channelCanvases.rgb = {
+                'Rojo': { img: rImg, desc: 'Canal Rojo Puro (Intensidad de rojo en escala de grises o tono)' },
+                'Verde': { img: gImg, desc: 'Canal Verde Puro' },
+                'Azul': { img: bImg, desc: 'Canal Azul Puro' }
+            };
+            
+            channelCanvases.cmyk = {
+                'Cian': { img: cImg, desc: 'Plancha de Cian (Absorbe Rojo)' },
+                'Magenta': { img: mImg, desc: 'Plancha de Magenta (Absorbe Verde)' },
+                'Amarillo': { img: yImg, desc: 'Plancha de Amarillo (Absorbe Azul)' },
+                'Negro (Key)': { img: kImg, desc: 'Plancha Negro/Key (Detalle y sombras)' }
+            };
+
+            channelCanvases.hsv = {
+                'Tono (Hue)': { img: hImg, desc: 'Distribución del Matiz/Tono de color' },
+                'Saturación': { img: sImg, desc: 'Intensidad o pureza del color' },
+                'Valor (Brillo)': { img: vImg, desc: 'Luminosidad geométrica de la imagen' }
+            };
+
+            channelCanvases.mono = {
+                'Escala de Grises': { img: grayImg, desc: 'Promedio ponderado estándar' },
+                'Luminancia (Rec.709)': { img: lumImg, desc: 'Sensibilidad del ojo humano a la luz' },
+                'Sepia': { img: sepiaImg, desc: 'Tono fotográfico vintage clásico' }
+            };
+
+            renderChannelsGrid();
+        }
+
+        function renderChannelsGrid() {
+            channelsContainer.innerHTML = '';
+            const spaceChannels = channelCanvases[currentSpace];
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+
+            Object.keys(spaceChannels).forEach(name => {
+                const channelData = spaceChannels[name];
+                
+                const card = document.createElement('div');
+                card.className = 'bg-[#522129] p-4 rounded-2xl border border-[#C9863B]/30 shadow-md flex flex-col gap-3 transition hover:shadow-lg';
+                
+                const header = document.createElement('div');
+                header.className = 'flex items-center justify-between';
+                header.innerHTML = `<h4 class="font-bold text-sm text-[#FDF3E7]">${name}</h4><span class="text-[10px] uppercase tracking-wider bg-[#3B141A] text-[#E5A853] px-2 py-0.5 rounded-md font-semibold border border-[#C9863B]/20">${currentSpace}</span>`;
+                card.appendChild(header);
+
+                const canvasWrapper = document.createElement('div');
+                canvasWrapper.className = 'checkerboard rounded-xl overflow-hidden border border-[#C9863B]/20 flex items-center justify-center p-2 bg-[#3B141A] aspect-video cursor-pointer relative group';
+                
+                const c = document.createElement('canvas');
+                c.width = width;
+                c.height = height;
+                c.className = 'max-w-full max-h-full object-contain rounded-lg shadow-xs transition group-hover:scale-[1.02]';
+                const ctx = c.getContext('2d');
+                ctx.putImageData(channelData.img, 0, 0);
+
+                canvasWrapper.appendChild(c);
+
+                canvasWrapper.addEventListener('click', () => {
+                    openModal(name, channelData.img, channelData.desc);
+                });
+
+                card.appendChild(canvasWrapper);
+
+                const desc = document.createElement('p');
+                desc.className = 'text-xs text-[rgba(253,243,231,0.78)] line-clamp-1';
+                desc.textContent = channelData.desc;
+                card.appendChild(desc);
+
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center justify-between pt-1 border-t border-[#C9863B]/20 mt-auto';
+                
+                const dlBtn = document.createElement('button');
+                dlBtn.className = 'text-xs font-medium text-[#E5A853] hover:text-[#FDF3E7] flex items-center gap-1.5 transition py-1';
+                dlBtn.innerHTML = '<i class="fa-solid fa-download"></i> Descargar';
+                dlBtn.onclick = () => downloadCanvasImage(c, `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.png`);
+                
+                const viewBtn = document.createElement('button');
+                viewBtn.className = 'text-xs font-medium text-[rgba(253,243,231,0.78)] hover:text-[#FDF3E7] flex items-center gap-1.5 transition py-1';
+                viewBtn.innerHTML = '<i class="fa-solid fa-expand"></i> Ampliar';
+                viewBtn.onclick = () => openModal(name, channelData.img, channelData.desc);
+
+                actions.appendChild(dlBtn);
+                actions.appendChild(viewBtn);
+                card.appendChild(actions);
+
+                channelsContainer.appendChild(card);
+            });
+        }
+
+        let activeModalFilename = 'channel.png';
+
+        function openModal(title, imageData, description) {
+            modalTitle.textContent = title;
+            modalDesc.textContent = description;
+            activeModalFilename = `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.png`;
+            
+            modalCanvas.width = originalCanvas.width;
+            modalCanvas.height = originalCanvas.height;
+            const mCtx = modalCanvas.getContext('2d');
+            mCtx.putImageData(imageData, 0, 0);
+
+            previewModal.classList.remove('hidden');
+        }
+
+        closeModal.addEventListener('click', () => {
+            previewModal.classList.add('hidden');
+        });
+
+        previewModal.addEventListener('click', (e) => {
+            if(e.target === previewModal) previewModal.classList.add('hidden');
+        });
+
+        modalDownloadBtn.addEventListener('click', () => {
+            downloadCanvasImage(modalCanvas, activeModalFilename);
+        });
+
+        function downloadCanvasImage(canvasElement, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvasElement.toDataURL('image/png');
+            link.click();
+            showNotification(`Canal descargado: ${filename}`);
+        }
+
+        document.getElementById('downloadAllBtn').addEventListener('click', () => {
+            const spaceChannels = channelCanvases[currentSpace];
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tCtx = tempCanvas.getContext('2d');
+
+            Object.keys(spaceChannels).forEach((name, index) => {
+                setTimeout(() => {
+                    tCtx.putImageData(spaceChannels[name].img, 0, 0);
+                    const filename = `${currentSpace}_${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.png`;
+                    const link = document.createElement('a');
+                    link.download = filename;
+                    link.href = tempCanvas.toDataURL('image/png');
+                    link.click();
+                }, index * 300);
+            });
+            showNotification(`Iniciando descarga de ${Object.keys(spaceChannels).length} canales (${currentSpace.toUpperCase()})...`);
+        });
+
+        originalCanvas.addEventListener('mousemove', (e) => {
+            const rect = originalCanvas.getBoundingClientRect();
+            const scaleX = originalCanvas.width / rect.width;
+            const scaleY = originalCanvas.height / rect.height;
+            
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            if (x >= 0 && y >= 0 && x < originalCanvas.width && y < originalCanvas.height) {
+                const pixel = originalCtx.getImageData(x, y, 1, 1).data;
+                const hex = '#' + [pixel[0], pixel[1], pixel[2]].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+                tooltipCoords.textContent = `X: ${x}, Y: ${y}`;
+                tooltipValues.textContent = `RGB (${pixel[0]}, ${pixel[1]}, ${pixel[2]})  ·  ${hex}`;
+                inspectorTooltip.classList.remove('opacity-0');
+            }
+        });
+
+        originalCanvas.addEventListener('mouseleave', () => {
+            inspectorTooltip.classList.add('opacity-0');
+        });
+    </script>
+</body>
+</html>
